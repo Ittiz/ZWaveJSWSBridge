@@ -30,9 +30,11 @@ import asyncio
 import threading
 import json
 import configparser
+import time
+import queue
 
 config = configparser.ConfigParser()
-keepgoing=True
+
 debug = False
 # The main function that will handle connection and communication 
 # with the server
@@ -44,14 +46,24 @@ async def listen():
     async with websockets.connect(wsurl) as ws:
         #async with connection as ws:
         msg = await asyncio.wait_for(ws.recv(),1)#we're not going to show this info
-        #Domoticz.Log(msg)
+        if debug:
+            Domoticz.Log(msg)
         # Send a greeting message
         await asyncio.wait_for(ws.send('{"messageId": "start-listening-result", "command": "start_listening"}'),1)#This tells ZwaveJS2MQTT Websocket server we want updates about Zwave device status changes.
-        #msg = await asyncio.wait_for(ws.recv(),1)#we're not going to show this info
         msg = await asyncio.wait_for(ws.recv(),1)#This is the initial state of all the nodes, lets ignore this for now.  TODO:  Check all the states for our devices and fix incorrect things!
         #Domoticz.Log(msg)
         config.read("plugins/ZWaveJSWSBridge/devices.ini")
-        while keepgoing:
+        while True:
+            try:
+                WSInput = WebSocketInput.get(block=True)
+                if WSInput is None:
+                    if debug:
+                        Domoticz.Log("Exiting input handler")
+                    WebSocketInput.task_done()
+                    break
+                WebSocketInput.task_done()
+            except Exception as err:
+                Domoticz.Error("Input handler: "+str(err))
             try:
                 msg = await asyncio.wait_for(ws.recv(),1)#this determines how long was wait for each request to time out. Last number is a timeout in seconds. This number*timer is how long the thread runs.  Should be less than heartbeat time which is 10 seconds.
                 data = json.loads(msg)
@@ -99,25 +111,24 @@ async def listen():
                                         device = Domoticz.Unit(Name=str(config.get(nodeId, "name")), DeviceID=DeviceID, Unit=int(pIndex), Type=int(config.get(nodeId, "typeID")), Subtype=int(config.get(nodeId, "subTypeID")), Switchtype=int(config.get(nodeId, "switchTypeID")), Image=int(config.get(nodeId, "image")), Options=str(config.get(nodeId, "options")), Used=1, Description=str(config.get(nodeId, "description"))).Create()
                                     elif (keyType == "sValue"):
                                         device = Domoticz.Unit(Name=str(config.get(nodeId, "name")), DeviceID=DeviceID, Unit=int(pIndex), Type=int(config.get(nodeId, "typeID")), Subtype=int(config.get(nodeId, "subTypeID")), Switchtype=int(config.get(nodeId, "switchTypeID")), Image=int(config.get(nodeId, "image")), Options=str(config.get(nodeId, "options")), Used=1, Description=str(config.get(nodeId, "description"))).Create()
-                                    i=i-1#we do this to catch the correct value on creation
+                                    i=i-1#we do this to catch the correct value from this update on creation
                                 except:
                                     Domoticz.Log("Failed to create device!")
                         except:
                             #Domoticz.Log(str(node)+"."+str(i))
                             sectionsfound = 0
                     i=i+1
-                #Domoticz.Log(str(timer)+"-1")
-            except:
-                #Domoticz.Log(str(timer)+"-2")
-                donothing=1
-            loop.stop()
+            except Exception as err:
+                Domoticz.Error("Listening loop: "+str(err))
 
 loop = asyncio.new_event_loop()
-stop = False
+
 def start_background_loop(loop: asyncio.AbstractEventLoop) -> None:
     asyncio.set_event_loop(loop)
     loop.run_until_complete(listen())
-t = threading.Thread(target=start_background_loop, args=(loop,), daemon=False)
+
+WebSocketInput = queue.Queue()    
+t = threading.Thread(name="websocket loop", target=start_background_loop, args=(loop,), daemon=False)
 
 class BasePlugin:
     enabled = False
@@ -126,12 +137,20 @@ class BasePlugin:
         #self.var = 123
         return
     def onStart(self):
-        t.start()#We spawn this in a different thread, otherwise Domoticz complains the thread is hung.
-        #Once  the thread completes, hopefully in less than 10 seconds, we need to renew it on heartbeat.
+        t.start()#We spawn this in a different thread, otherwise Domoticz complains the plugin is hung.
 
     def onStop(self):
-        #Domoticz.Log("onStop called")
-        keepgoing=False
+        if debug:
+            Domoticz.Log("onStop called")
+        loop.stop()
+        WebSocketInput.put(None)
+        WebSocketInput.join()
+        while (threading.active_count() > 1):
+            for thread in threading.enumerate():
+                if (thread.name != threading.current_thread().name) and debug:
+                    Domoticz.Log("'"+thread.name+"' is still running, waiting otherwise Domoticz will abort on plugin exit.")
+            time.sleep(1.0)
+
 
     def onConnect(self, Connection, Status, Description):
         Domoticz.Log("onConnect called")
@@ -149,8 +168,10 @@ class BasePlugin:
         Domoticz.Log("onDisconnect called")
 
     def onHeartbeat(self):
-        donothing=1
-        #loop.run_until_complete(listen())
+        if debug:
+            Domoticz.Log(str(threading.active_count()))
+            for thread in threading.enumerate():
+                Domoticz.Log("'"+thread.name+"' is still running.")
 
 
 # Start the connection
