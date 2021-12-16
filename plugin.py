@@ -46,8 +46,8 @@ async def listen():
     async with websockets.connect(wsurl) as ws:
         #async with connection as ws:
         msg = await asyncio.wait_for(ws.recv(),1)#we're not going to show this info
-        #if debug:
-        Domoticz.Log(msg)
+        if debug:
+            Domoticz.Log(msg)
         # Send a greeting message
         await asyncio.wait_for(ws.send('{"messageId": "start-listening-result", "command": "start_listening"}'),1)#This tells ZwaveJS2MQTT Websocket server we want updates about Zwave device status changes.
         msg = await asyncio.wait_for(ws.recv(),1)#This is the initial state of all the nodes, lets ignore this for now.  TODO:  Check all the states for our devices and fix incorrect things!
@@ -62,6 +62,7 @@ async def listen():
                         if debug:
                             Domoticz.Log("Exiting input handler")
                         WebSocketInput.task_done()
+                        loop.stop()#if we're in here the thread is going away so we add a precautionary stop of loop
                         break#Keep in mind that if the loop never gets here the thread never stops.
                     WebSocketInput.task_done()
             except:
@@ -71,8 +72,8 @@ async def listen():
                 #Domoticz.Log("out")
                 msg = await asyncio.wait_for(ws.recv(),1)#ALWAYS put a timeout for "wait_for(..." or a dormant connection will cause the plugin to hang!
                 data = json.loads(msg)
-                #if debug:
-                Domoticz.Log("Update:"+str(msg))
+                if debug:
+                    Domoticz.Log("Update:"+str(msg))
                 node = data['event']['nodeId']
                 try:
                     commandclass = data['event']['args']['commandClassName']
@@ -81,8 +82,8 @@ async def listen():
                     #Domoticz.Log("fail!")
                     commandclass = 0
                     propertyname = 0
-                #if debug:
-                Domoticz.Log("Node:"+str(node)+" Command Class:"+str(commandclass)+", "+" Property Name:"+str(propertyname))
+                if debug:
+                    Domoticz.Log("Node:"+str(node)+" Command Class:"+str(commandclass)+", "+" Property Name:"+str(propertyname))
                 sectionsfound = 1
                 i = 0
                 while sectionsfound == 1 and commandclass != 0 and propertyname != 0:
@@ -123,8 +124,9 @@ async def listen():
                                 Domoticz.Log("Node ID not in Config")
                     i=i+1
             except Exception as err:
-                if debug:
+                if debug and len(str(err)) > 0:
                     Domoticz.Error("Listening loop: "+str(err))
+    loop.stop()#if anything at all causes this function to finish we need to stop the loop or Domoticz gets an upset tummy.
 
 loop = asyncio.new_event_loop()#this stuff needs to be global because asyncio and threads don't play nice in Domoticz.  Maybe someone whos know more than me can figure this out?
 
@@ -173,9 +175,9 @@ class BasePlugin:
 
     def onHeartbeat(self):
         if debug:
-            Domoticz.Log(str(threading.active_count()))
+            Domoticz.Log(str(threading.active_count())+" threads running.")
             for thread in threading.enumerate():
-                Domoticz.Log("'"+thread.name+"' is still running.")
+                Domoticz.Log("'"+thread.name+"' is running.")
 
 
 # Start the connection
