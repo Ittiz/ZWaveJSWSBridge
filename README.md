@@ -24,6 +24,6 @@ If you don't know how already, wait for this plugin to be more developed!
 4: Communication is currently ONE way! From the device to the server only.  Out bound needs to be added as well.
 
 # Lastly
-	This plugin is in early developement.  If it doesn't work come back later. Also provide feed back if it
-	doesn't work so maybe it will next time!
+This plugin is in early developement.  If it doesn't work come back later. Also provide feed back if it
+doesn't work so maybe it will next time!
    
