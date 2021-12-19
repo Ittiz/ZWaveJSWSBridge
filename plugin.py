@@ -39,7 +39,7 @@ debug = False
 # The main function that will handle connection and communication 
 # with the server
 async def listen():
-    time.sleep(120)#wait to start.  Onerous things will happen if you don't!  If ZWaveJS2MDTT isn't ready the whole thing hangs.
+    time.sleep(120)#wait to start.  Onerous things will happen if you don't!  If ZWaveJS2MQTT isn't ready the whole thing hangs.
     # Connect to the server/
     if debug:
         Domoticz.Log("Address: ws://"+str(Parameters["Address"]+":"+str(Parameters["Port"])))
