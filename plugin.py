@@ -35,14 +35,15 @@ import queue
 
 config = configparser.ConfigParser()
 
-debug = False
+debug = True
 # The main function that will handle connection and communication 
 # with the server
 async def listen():
+    Domoticz.Log("Waiting 2 minutes to start Websocket connection!")
     time.sleep(120)#wait to start.  Onerous things will happen if you don't!  If ZWaveJS2MQTT isn't ready the whole thing hangs.
     # Connect to the server/
     if debug:
-        Domoticz.Log("Address: ws://"+str(Parameters["Address"]+":"+str(Parameters["Port"])))
+        Domoticz.Log("Connecting to address: ws://"+str(Parameters["Address"]+":"+str(Parameters["Port"])))
     try:
         wsurl = "ws://"+str(Parameters["Address"]+":"+str(Parameters["Port"]))
         async with websockets.connect(wsurl) as ws:
@@ -119,8 +120,8 @@ async def listen():
                                         elif (keyType == "sValue"):
                                             device = Domoticz.Unit(Name=str(config.get(nodeId, "name")), DeviceID=DeviceID, Unit=int(pIndex), Type=int(config.get(nodeId, "typeID")), Subtype=int(config.get(nodeId, "subTypeID")), Switchtype=int(config.get(nodeId, "switchTypeID")), Image=int(config.get(nodeId, "image")), Options=str(config.get(nodeId, "options")), Used=1, Description=str(config.get(nodeId, "description"))).Create()
                                         i=i-1#we do this to catch the correct value from this update on creation
-                                    except:
-                                        Domoticz.Log("Failed to create device!")
+                                    except Exception as err:
+                                        Domoticz.Error("Failed to create device! Error: "+str(err))
                             except:
                                 if debug:
                                     Domoticz.Log("Node ID not in Config")
@@ -187,8 +188,8 @@ class BasePlugin:
     def onMessage(self, Connection, Data):
         Domoticz.Log("onMessage called")
 
-    def onCommand(self, Unit, Command, Level, Hue):
-        Domoticz.Log("onCommand called")#Domoticz.Log("onCommand called for Unit " + str(Unit) + ": Parameter '" + str(Command) + "', Level: " + str(Level))
+    def onCommand(self, Unit, Command, Level, Hue, Whatever):
+        Domoticz.Log("onCommand called for Unit " + str(Unit) + ": Parameter '" + str(Command) + "', Level: " + str(Level) + ", Hue: " + str(Hue) + ", Whatever: " + str(Whatever))#Domoticz.Log("onCommand called")#
 
     def onNotification(self, Name, Subject, Text, Status, Priority, Sound, ImageFile):
         Domoticz.Log("Notification Called")#Domoticz.Log("Notification: " + Name + "," + Subject + "," + Text + "," + Status + "," + str(Priority) + "," + Sound + "," + ImageFile)
@@ -237,9 +238,9 @@ def onMessage(Connection, Data):
     global _plugin
     _plugin.onMessage(Connection, Data)
 
-def onCommand(Unit, Command, Level, Hue):
+def onCommand(Unit, Command, Level, Hue, Whatever):
     global _plugin
-    _plugin.onCommand(Unit, Command, Level, Hue)
+    _plugin.onCommand(Unit, Command, Level, Hue, Whatever)
 
 def onNotification(Name, Subject, Text, Status, Priority, Sound, ImageFile):
     global _plugin
