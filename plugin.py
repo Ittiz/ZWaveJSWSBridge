@@ -35,7 +35,7 @@ import queue
 
 config = configparser.ConfigParser()
 
-debug = True
+debug = False
 # The main function that will handle connection and communication 
 # with the server
 async def listen():
