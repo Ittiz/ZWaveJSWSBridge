@@ -41,7 +41,7 @@ debug = False
 async def listen():
     Domoticz.Log("Waiting 2 minutes to start Websocket connection!")
     time.sleep(120)#wait to start.  Onerous things will happen if you don't!  If ZWaveJS2MQTT isn't ready the whole thing hangs.
-    # Connect to the server/
+    # Connect to the server
     if debug:
         Domoticz.Log("Connecting to address: ws://"+str(Parameters["Address"]+":"+str(Parameters["Port"])))
     try:
@@ -81,21 +81,30 @@ async def listen():
                     try:
                         commandclass = data['event']['args']['commandClassName']
                         propertyname = data['event']['args']['propertyName']
+                        newValue = data['event']['args']['newValue']
                     except:
                         #Domoticz.Log("fail!")
-                        commandclass = 0
-                        propertyname = 0
+                        commandclass = None
+                        propertyname = None
+                        newValue = None
                     if debug:
                         Domoticz.Log("Node:"+str(node)+" Command Class:"+str(commandclass)+", "+" Property Name:"+str(propertyname))
                     sectionsfound = 1
                     i = 0
-                    while sectionsfound == 1 and commandclass != 0 and propertyname != 0:
+                    while sectionsfound == 1 and commandclass != None and propertyname != None and newValue != None:
                         if debug:
                             Domoticz.Log(str("Update node found in config!"))
-                        nodeId = str(node)+"."+str(i)
-                        enabled = int(config.get(nodeId, "enabled"))
-                        pIndex = int(config.get(nodeId, "index"))
-                        DeviceID="ZW2WSB-"+str(node)+"."+str(pIndex)
+                        try:
+                            nodeId = str(node)+"."+str(i)
+                            enabled = int(config.get(nodeId, "enabled"))
+                            pIndex = int(config.get(nodeId, "index"))
+                            DeviceID="ZW2WSB-"+str(node)+"."+str(pIndex)
+                            tempInput = str(config.get(nodeId, "tempInput"))
+                        except:
+                            sectionsfound = 0
+                            enabled=0
+                            commandclass = 0
+                            propertyname = 0
                         if debug:
                             Domoticz.Log("Info:"+str(pIndex)+", "+commandclass+", "+config.get(nodeId, "commandClass")+", "+propertyname+", "+config.get(nodeId, "property"))
                         if enabled == 1 and commandclass == config.get(nodeId, "commandClass") and propertyname == config.get(nodeId, "property"):#if it's not enabled we don't need to do anything.
@@ -105,26 +114,32 @@ async def listen():
                                 keyType = config.get(nodeId, "value")
                                 try:
                                     device = Devices[DeviceID].Units[pIndex]
+                                    if len(tempInput) > 0:
+                                        if str(tempInput) == "F" or str(tempInput) == "f":
+                                            newValue = (float(newValue)-32)*(5/9)
+                                        elif str(tempInput) == "K" or str(tempInput) == "k":
+                                            newValue = float(newValue)-273.15
+                                        else:
+                                            newValue = float(newValue)
                                     if (keyType == "nValue"):
-                                        Domoticz.Log("Update: "+str(config.get(nodeId, "name"))+", nValue: "+str(data['event']['args']['newValue']))
-                                        device.nValue=int(data['event']['args']['newValue'])
+                                        Domoticz.Log("Update: "+str(config.get(nodeId, "name"))+", nValue: "+str(newValue))
+                                        device.nValue=int(newValue)
                                     elif (keyType == "sValue"):
-                                        Domoticz.Log("Update: "+str(config.get(nodeId, "name"))+", sValue: "+str(data['event']['args']['newValue']))
-                                        device.sValue=str(data['event']['args']['newValue'])
+                                        Domoticz.Log("Update: "+str(config.get(nodeId, "name"))+", sValue: "+str(newValue))
+                                        device.sValue=str(newValue)
                                     device.Update(Log=True)
-                                except:
+                                except Exception as err:
+                                    Domoticz.Error(str(err))
                                     try:
                                         Domoticz.Log("Failed to update device! Is it new? Creating: "+str(config.get(nodeId, "name")))
-                                        if (keyType == "nValue"):
-                                            device = Domoticz.Unit(Name=str(config.get(nodeId, "name")), DeviceID=DeviceID, Unit=int(pIndex), Type=int(config.get(nodeId, "typeID")), Subtype=int(config.get(nodeId, "subTypeID")), Switchtype=int(config.get(nodeId, "switchTypeID")), Image=int(config.get(nodeId, "image")), Options=str(config.get(nodeId, "options")), Used=1, Description=str(config.get(nodeId, "description"))).Create()
-                                        elif (keyType == "sValue"):
-                                            device = Domoticz.Unit(Name=str(config.get(nodeId, "name")), DeviceID=DeviceID, Unit=int(pIndex), Type=int(config.get(nodeId, "typeID")), Subtype=int(config.get(nodeId, "subTypeID")), Switchtype=int(config.get(nodeId, "switchTypeID")), Image=int(config.get(nodeId, "image")), Options=str(config.get(nodeId, "options")), Used=1, Description=str(config.get(nodeId, "description"))).Create()
                                         i=i-1#we do this to catch the correct value from this update on creation
-                                    except Exception as err:
-                                        Domoticz.Error("Failed to create device! Error: "+str(err))
+                                        device = Domoticz.Unit(Name=str(config.get(nodeId, "name")), DeviceID=DeviceID, Unit=int(pIndex), Type=int(config.get(nodeId, "typeID")), Subtype=int(config.get(nodeId, "subTypeID")), Switchtype=int(config.get(nodeId, "switchTypeID")), Image=int(config.get(nodeId, "image")), Options=str(config.get(nodeId, "options")), Used=1, Description=str(config.get(nodeId, "description"))).Create()
+                                    except Exception as err2:
+                                        Domoticz.Error("Failed to create device! Error: "+str(err)+" and "+str(err2)+" node "+nodeId+" will be ignored")
+                                        sectionsfound = 0
                             except:
                                 if debug:
-                                    Domoticz.Log("Node ID not in Config")
+                                    Domoticz.Log("Node "+nodeId+" not in Config")
                         i=i+1
                 except Exception as err:
                     if debug and len(str(err)) > 0:
