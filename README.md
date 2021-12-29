@@ -21,6 +21,7 @@ created once they're first seen by the Zwave hub.  Devices which are not enabled
 created until they are enabled.
 
 ![This is how you tell the plugin which device/property you want to target](/ZWJS2MQTTWB.png)
+
 This is how you tell the plugin which device/property you want to target.
 
 # TODO
