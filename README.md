@@ -16,9 +16,12 @@ Goto your plugin folder and clone this repo.
 # How to set up new devices
 The devices.ini file defines the Zwave devices you want to create and how you interact with them.
 You can find out which commandClass, endpoint, property and propertyKey values you need from the ZWaveJS2MQTT
-control panel usually found at http://127.0.0.1:8091/control-panel on your server.
+control panel usually found at http://127.0.0.1:8091/control-panel on your server.  Devices are automatically
+created once they're first seen by the Zwave hub.  Devices which are not enabled will be ignored and not
+created until they are enabled.
 
 ![This is how you tell the plugin which device/property you want to target](/ZWJS2MQTTWB.png)
+This is how you tell the plugin which device/property you want to target.
 
 # TODO
 1: I'd like to add a way to translate inputs to different outputs using the ini file.  So a device changing its
@@ -34,5 +37,6 @@ control panel usually found at http://127.0.0.1:8091/control-panel on your serve
 
 # Lastly
 This plugin is in early developement.  If it doesn't work come back later. Also provide feed back if it
-doesn't work so maybe it will next time!
+doesn't work so maybe it will next time!  If you want to issue a pull request please don't add you're
+version of the devices.ini.  Leave the default one and add keys to it if your changes require new keys.
    
