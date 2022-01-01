@@ -58,7 +58,7 @@ def fixtemp(direction,tempInput,newValue):#we need this in multiple places so it
 # with the server
 async def listen():
     Domoticz.Log("Waiting 2 minutes to start Websocket connection!")
-    time.sleep(120)#wait to start.  Onerous things will happen if you don't!  If ZWaveJS2MQTT isn't ready the whole thing hangs.
+    #time.sleep(120)#wait to start.  Onerous things will happen if you don't!  If ZWaveJS2MQTT isn't ready the whole thing hangs.
     # Connect to the server
     if debug:
         Domoticz.Log("Connecting to address: ws://"+str(Parameters["Address"]+":"+str(Parameters["Port"])))
@@ -109,8 +109,9 @@ async def listen():
                     try:
                         commandclassName = data['event']['args']['commandClassName']
                         commandclass = data['event']['args']['commandClass']
-                        propertyname = data['event']['args']['propertyName']
+                        propertyname = data['event']['args']['property']
                         newValue = data['event']['args']['newValue']
+                        newValue2 = 0
                         try:
                             endpoint = data['event']['args']['endpoint']
                         except:
@@ -142,43 +143,65 @@ async def listen():
                             DeviceID="ZW2WSB-"+str(node)+"."+str(pIndex)
                             tempInput = str(config.get(nodeId, "tempInput"))
                             direction = str(config.get(nodeId, "direction"))
+                            typeId = int(config.get(nodeId, "typeID"))
+                            subTypeId = int(config.get(nodeId, "subTypeID"))
+                            switchTypeId = int(config.get(nodeId, "switchTypeID"))
+                            try:
+                                translation = eval(config.get(nodeId, "translations"))
+                            except:
+                                translation = {}
                             #Domoticz.Log("Info:"+str(Devices[DeviceID]))
                             if debug:
                                 Domoticz.Log("Info:"+str(pIndex)+", "+commandclass+", "+config.get(nodeId, "commandClass")+", "+str(endpoint)+", "+config.get(nodeId, "endpoint")+", "+propertyname+", "+config.get(nodeId, "property")+", "+str(propertykey)+", "+config.get(nodeId, "propertyKey"))
                             if direction == "in":#This is for creating input devices.  We seperate the inputs from the outputs because we may want to send our commands to a seperate property or even command class than we recieved updates from.
+                                if debug:
+                                    Domoticz.Log(str(config.get(nodeId, "options")))
                                 try:
                                     Devices[DeviceID]
                                 except:
                                     if enabled == 1:
                                         try:
                                             Domoticz.Log("Creating new iput device: "+str(config.get(nodeId, "name")))
-                                            device = Domoticz.Unit(Name=str(config.get(nodeId, "name")), DeviceID=DeviceID, Unit=int(pIndex), Type=int(config.get(nodeId, "typeID")), Subtype=int(config.get(nodeId, "subTypeID")), Switchtype=int(config.get(nodeId, "switchTypeID")), Image=int(config.get(nodeId, "image")), Options=str(config.get(nodeId, "options")), Used=1, Description=str(config.get(nodeId, "description"))).Create()
+                                            device = Domoticz.Unit(Name=str(config.get(nodeId, "name")), DeviceID=DeviceID, Unit=int(pIndex), Type=int(config.get(nodeId, "typeID")), Subtype=int(config.get(nodeId, "subTypeID")), Switchtype=int(config.get(nodeId, "switchTypeID")), Image=int(config.get(nodeId, "image")), Options=eval(config.get(nodeId, "options")), Used=1, Description=str(config.get(nodeId, "description"))).Create()
                                         except Exception as err:
                                             Domoticz.Error("Failed to create device! Error: "+str(err)+" node "+nodeId+" will be ignored")
                                             sectionsfound = 0
                             else:
-                                if enabled == 1 and commandclass == config.get(nodeId, "commandClass") and int(endpoint) == int(config.get(nodeId, "endpoint")) and propertyname == config.get(nodeId, "property") and int(propertykey) == int(config.get(nodeId, "propertyKey")):#if it's not enabled we don't need to do anything.
+                                if enabled == 1 and commandclass == config.get(nodeId, "commandClass") and int(endpoint) == int(config.get(nodeId, "endpoint")) and str(propertyname) == str(config.get(nodeId, "property")) and int(propertykey) == int(config.get(nodeId, "propertyKey")):#if it's not enabled we don't need to do anything.
                                     if debug:
                                         Domoticz.Log(str("Update property found in config!"))
                                     try:
                                         keyType = config.get(nodeId, "value")
                                         try:
                                             device = Devices[DeviceID].Units[pIndex]
-                                            if len(tempInput) > 0:
+                                            if typeId == 242 or typeId == 80:#thermostats, thermometers ect
                                                 newValue = fixtemp(direction,tempInput,newValue)
+                                            elif typeId == 17 or typeId == 244:#some kind of switch
+                                                if subTypeId == 62 or switchTypeId == 18:#selector switch
+                                                    keyType = "both"
+                                                    newValue2 = 1
+                                                    try:
+                                                        newValue = int(translation[str(newValue)])
+                                                    except:
+                                                        newValue = str(translation[str(newValue)])
                                             if (keyType == "nValue"):
                                                 Domoticz.Log("Update: "+str(config.get(nodeId, "name"))+", nValue: "+str(newValue))
                                                 device.nValue=int(newValue)
                                             elif (keyType == "sValue"):
                                                 Domoticz.Log("Update: "+str(config.get(nodeId, "name"))+", sValue: "+str(newValue))
                                                 device.sValue=str(newValue)
+                                            elif (keyType == "both"):
+                                                Domoticz.Log("Update: "+str(config.get(nodeId, "name"))+", sValue: "+str(newValue))
+                                                Domoticz.Log("Update: "+str(config.get(nodeId, "name"))+", nValue: "+str(newValue2))
+                                                device.sValue=str(newValue)
+                                                device.nValue=int(newValue2)
                                             device.Update(Log=True)
                                         except Exception as err:
                                             Domoticz.Error(str(err))
                                             try:
                                                 Domoticz.Log("Failed to update device! Is it new? Creating: "+str(config.get(nodeId, "name")))
                                                 i=i-1#we do this to catch the correct value from this update on creation
-                                                device = Domoticz.Unit(Name=str(config.get(nodeId, "name")), DeviceID=DeviceID, Unit=int(pIndex), Type=int(config.get(nodeId, "typeID")), Subtype=int(config.get(nodeId, "subTypeID")), Switchtype=int(config.get(nodeId, "switchTypeID")), Image=int(config.get(nodeId, "image")), Options=str(config.get(nodeId, "options")), Used=1, Description=str(config.get(nodeId, "description"))).Create()
+                                                device = Domoticz.Unit(Name=str(config.get(nodeId, "name")), DeviceID=DeviceID, Unit=int(pIndex), Type=int(config.get(nodeId, "typeID")), Subtype=int(config.get(nodeId, "subTypeID")), Switchtype=int(config.get(nodeId, "switchTypeID")), Image=int(config.get(nodeId, "image")), Options=eval(config.get(nodeId, "options")), Used=1, Description=str(config.get(nodeId, "description"))).Create()
                                             except Exception as err2:
                                                 Domoticz.Error("Failed to create device! Error: "+str(err)+" and "+str(err2)+" node "+nodeId+" will be ignored")
                                                 sectionsfound = 0
@@ -256,8 +279,8 @@ class BasePlugin:
         Domoticz.Log("onMessage called")
 
     def onCommand(self, Unit, Command, Level, Hue, Whatever):
-        if debug:
-            Domoticz.Log("onCommand called for Unit " + str(Unit) + ": Command '" + str(Command) + "', Level: " + str(Level) + ", Hue: " + str(Hue) + ", Whatever: " + str(Whatever))#Domoticz.Log("onCommand called")#
+        #if debug:
+        Domoticz.Log("onCommand called for Unit " + str(Unit) + ": Command '" + str(Command) + "', Level: " + str(Level) + ", Hue: " + str(Hue) + ", Whatever: " + str(Whatever))#Domoticz.Log("onCommand called")#
         node = Unit[7:Unit.find(".",7)]
         try:
             config.read("plugins/ZWaveJSWSBridge/devices.ini")#try and get our device info from the ini file.
@@ -280,6 +303,10 @@ class BasePlugin:
                 typeId = int(config.get(nodeId, "typeID"))
                 subTypeId = int(config.get(nodeId, "subTypeID"))
                 switchTypeId = int(config.get(nodeId, "switchTypeID"))
+                try:
+                    translation = eval(config.get(nodeId, "translations"))
+                except:
+                    translation = {}
                 #Domoticz.Log("Info:"+str(Devices[DeviceID]))
                 OPvalue = ""
                 if direction == "in" and enabled == 1 and str(Command) == str(pIndex):
@@ -299,14 +326,21 @@ class BasePlugin:
                         message = message+'"'+str(commandClass)+'"'
                     if endpoint != None:
                         message = message + ', "endpoint": '+str(endpoint)
-                    message =  message + ', "property": "'+str(prop)+'"'
+                    try:
+                        isinstance(int(prop),int)#hackish way to see if the user input the command class number rather than name
+                        message =  message + ', "property": '+str(prop)#if a number is input we don't need the quotes in the json.
+                    except:
+                        message =  message + ', "property": "'+str(prop)+'"'
                     if propertykey != None:
                         message = message + ', "propertyKey": '+str(propertykey)
                     if typeId == 242:#thermostat
                         OPvalue = int(round(float(Hue)))#Domoticz can do half degrees, some thermostats don't like this.
                     elif typeId == 17 or typeId == 244:#some kind of switch
                         if subTypeId == 62 or switchTypeId == 18:#selector switch
-                            OPvalue = 0#place holder
+                            try:
+                                OPvalue = int(translation[str(Hue)])
+                            except:
+                                OPvalue = str(translation[str(Hue)])
                         elif subTypeId == 73:#Not a selector switch
                             if switchTypeId == 0:#An ordinary on/off type switch
                                 if Level == "On":

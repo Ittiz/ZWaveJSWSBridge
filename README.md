@@ -27,9 +27,8 @@ created until they are enabled.
 This is how you tell the plugin which device/property you want to target.
 
 # TODO
-1: I'd like to add a way to translate inputs to different outputs using the ini file.  So a device changing its
-   status to 1 equals a different input to the Domoticz device like to "Danny" for instance when you get a number
-   in an update that represents a particular user who has logged into an external hardware.
+1: Make translating inputs and outputs easier.  So if your input is not the same as your output it's easeir to
+   convert between the two.
 
 2: Create a way to add and edit devices from the web UI.
 
