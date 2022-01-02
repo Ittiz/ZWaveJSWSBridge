@@ -58,7 +58,7 @@ def fixtemp(direction,tempInput,newValue):#we need this in multiple places so it
 # with the server
 async def listen():
     Domoticz.Log("Waiting 2 minutes to start Websocket connection!")
-    #time.sleep(120)#wait to start.  Onerous things will happen if you don't!  If ZWaveJS2MQTT isn't ready the whole thing hangs.
+    time.sleep(120)#wait to start.  Onerous things will happen if you don't!  If ZWaveJS2MQTT isn't ready the whole thing hangs.
     # Connect to the server
     if debug:
         Domoticz.Log("Connecting to address: ws://"+str(Parameters["Address"]+":"+str(Parameters["Port"])))
@@ -117,7 +117,7 @@ async def listen():
                         except:
                             endpoint = 0
                         try:
-                            propertykey = data['event']['args']['propertyKey']
+                            propertykey = int(data['event']['args']['propertyKey'])
                         except:
                             propertykey = 0
                         try:
@@ -167,7 +167,7 @@ async def listen():
                                             Domoticz.Error("Failed to create device! Error: "+str(err)+" node "+nodeId+" will be ignored")
                                             sectionsfound = 0
                             else:
-                                if enabled == 1 and commandclass == config.get(nodeId, "commandClass") and int(endpoint) == int(config.get(nodeId, "endpoint")) and str(propertyname) == str(config.get(nodeId, "property")) and int(propertykey) == int(config.get(nodeId, "propertyKey")):#if it's not enabled we don't need to do anything.
+                                if enabled == 1 and commandclass == config.get(nodeId, "commandClass") and int(endpoint) == int(config.get(nodeId, "endpoint")) and str(propertyname) == str(config.get(nodeId, "property")) and (str(propertykey) == str(config.get(nodeId, "propertyKey")) or str(propertykey) == "0"):#if it's not enabled we don't need to do anything.
                                     if debug:
                                         Domoticz.Log(str("Update property found in config!"))
                                     try:
@@ -178,12 +178,15 @@ async def listen():
                                                 newValue = fixtemp(direction,tempInput,newValue)
                                             elif typeId == 17 or typeId == 244:#some kind of switch
                                                 if subTypeId == 62 or switchTypeId == 18:#selector switch
+                                                    Domoticz.Log("Update:"+str(msg))
                                                     keyType = "both"
                                                     newValue2 = 1
                                                     try:
                                                         newValue = int(translation[str(newValue)])
                                                     except:
                                                         newValue = str(translation[str(newValue)])
+                                                    if newValue == 0:
+                                                        newValue2 = 0
                                             if (keyType == "nValue"):
                                                 Domoticz.Log("Update: "+str(config.get(nodeId, "name"))+", nValue: "+str(newValue))
                                                 device.nValue=int(newValue)
@@ -279,8 +282,8 @@ class BasePlugin:
         Domoticz.Log("onMessage called")
 
     def onCommand(self, Unit, Command, Level, Hue, Whatever):
-        #if debug:
-        Domoticz.Log("onCommand called for Unit " + str(Unit) + ": Command '" + str(Command) + "', Level: " + str(Level) + ", Hue: " + str(Hue) + ", Whatever: " + str(Whatever))#Domoticz.Log("onCommand called")#
+        if debug:
+            Domoticz.Log("onCommand called for Unit " + str(Unit) + ": Command '" + str(Command) + "', Level: " + str(Level) + ", Hue: " + str(Hue) + ", Whatever: " + str(Whatever))#Domoticz.Log("onCommand called")#
         node = Unit[7:Unit.find(".",7)]
         try:
             config.read("plugins/ZWaveJSWSBridge/devices.ini")#try and get our device info from the ini file.
@@ -311,11 +314,11 @@ class BasePlugin:
                 OPvalue = ""
                 if direction == "in" and enabled == 1 and str(Command) == str(pIndex):
                     try:
-                        endpoint = config.get(nodeId, "endpoint")
+                        endpoint = int(config.get(nodeId, "endpoint"))
                     except:
                         endpoint = None
                     try:
-                        propertykey = config.get(nodeId, "propertyKey")
+                        propertykey = int(config.get(nodeId, "propertyKey"))
                     except:
                         propertykey = None
                     message = '{"messageId": "'+str(Unit)+'_input" ,"command": "node.set_value", "nodeId": '+str(node)+', "valueId": {"commandClass": '
@@ -340,7 +343,7 @@ class BasePlugin:
                             try:
                                 OPvalue = int(translation[str(Hue)])
                             except:
-                                OPvalue = str(translation[str(Hue)])
+                                OPvalue = '"'+str(translation[str(Hue)])+'"'
                         elif subTypeId == 73:#Not a selector switch
                             if switchTypeId == 0:#An ordinary on/off type switch
                                 if Level == "On":
@@ -351,7 +354,7 @@ class BasePlugin:
                             Domoticz.Error("Unknown switch device subtype: "+subTypeId)
                     else:
                         Domoticz.Error("Unknown input Type: "+str(typeId)+", Sub Type: "+str(subTypeId)+", Switch Type: "+str(switchTypeId))
-                    message = message+'}, "value":'+str(OPvalue)+'}'
+                    message = message+'}, "value": '+str(OPvalue)+'}'
                     if debug:
                         Domoticz.Log("Message Input: "+message)
                     Domoticz.Log("Updating "+str(Unit)+" to "+str(OPvalue))
