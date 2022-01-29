@@ -404,7 +404,7 @@ class BasePlugin:
 
 
 global _plugin
-_plugin = BasePlugin()
+_plugin = BasePlugin() 
 
 def onStart():
     global _plugin
